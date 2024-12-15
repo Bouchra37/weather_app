@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    container_name: zookeeper
+    expose:
+      - "2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    volumes:
+      - kafka_zookeeper:/opt/zookeeper-3.6.1/data
+    networks:
+      - kafkanet
+  
+  kafka:
+    image: 'bitnami/kafka:latest'
+    container_name: kafka
+    ports:
+      - '9093:9093'  # Port externe
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://localhost:9093
+      - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
+    volumes:
+      - kafka_kafka:/opt/kafka_2.12-2.2.0/logs
+    networks:
+      - kafkanet
+    depends_on:
+      - "zookeeper"
+  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    ports:
+      - 8080:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+    networks:
+      - kafkanet
+  
+  spark-master:
+    image: bitnami/spark:latest
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "7077:7077"  # Port pour le cluster Spark
+      - "8081:8081"  # Interface Web Spark
+    networks:
+      - kafkanet
+
+  spark-worker:
+    image: bitnami/spark:latest
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    networks:
+      - kafkanet
+    depends_on:
+      - spark-master
+  
+  spark-streaming:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spark-streaming
+    depends_on:
+      - spark-master
+      - kafka
+    networks:
+      - kafkanet
+
+  cassandra:
+    image: cassandra:4.0
+    container_name: cassandra
+    ports:
+      - "9042:9042"  # Port Cassandra
+    environment:
+      - CASSANDRA_CLUSTER_NAME=CassandraCluster
+      - CASSANDRA_NUM_TOKENS=256
+      - CASSANDRA_BROADCAST_ADDRESS=cassandra
+      - CASSANDRA_BROADCAST_RPC_ADDRESS=cassandra
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+    networks:
+      - kafkanet
+
+networks:
+  kafkanet:
+    name: kafkanet
+    driver: bridge
+
+
+volumes:
+  kafka_zookeeper:
+  kafka_kafka:
+  cassandra-data: 
