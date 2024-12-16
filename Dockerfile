@@ -17,7 +17,7 @@ COPY consumer.py .
 COPY spark_streaming.py . 
 
 # Installer les dépendances nécessaires
-RUN pip install kafka-python requests pyspark cassandra-driver
+RUN pip install kafka-python requests pyspark cassandra-driver pandas pyarrow
 
 # Copier le script pour démarrer les services
 COPY start.sh .

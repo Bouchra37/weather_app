@@ -79,6 +79,8 @@ services:
       - kafka
     networks:
       - kafkanet
+    volumes:
+      - ./output/parquet:/data/parquet
 
   cassandra:
     image: cassandra:4.0
